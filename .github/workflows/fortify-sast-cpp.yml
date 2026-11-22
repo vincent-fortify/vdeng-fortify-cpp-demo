@@ -1,0 +1,88 @@
+name: Fortify SAST (C/C++ via MBS)
+
+# C/C++ cannot be uploaded to FoD as source. The job translates the code with
+# sourceanalyzer (wrapping the normal build), exports a Mobile Build Session (MBS),
+# submits it to FoD with fcli, waits for results and publishes them to GitHub code scanning.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read          # pull the private SAST image from GHCR
+  security-events: write  # upload SARIF to code scanning
+
+env:
+  BUILD_ID: ${{ github.event.repository.name }}
+  FOD_URL: ${{ vars.FOD_URL }}
+  FOD_RELEASE: ${{ vars.FOD_RELEASE }}   # "<application>:<release>", static scan setup = MBS/C/C++/Scala
+
+jobs:
+  fortify-sast:
+    # Skips cleanly until the repo variables are configured
+    if: ${{ vars.FOD_RELEASE != '' }}
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/vincent-fortify/fortify-sast-cpp:26.3.0
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Fortify licence
+        env:
+          FORTIFY_LICENSE_B64: ${{ secrets.FORTIFY_LICENSE_B64 }}
+        run: echo "$FORTIFY_LICENSE_B64" | base64 -d > "$FORTIFY_HOME/fortify.license"
+
+      - name: Translate (touchless build)
+        run: |
+          make clean
+          sourceanalyzer -b "$BUILD_ID" -clean
+          sourceanalyzer -debug -verbose -logfile translate.log -b "$BUILD_ID" touchless make
+          sourceanalyzer -b "$BUILD_ID" -show-files | tee translated-files.txt
+          if [ ! -s translated-files.txt ]; then
+            echo "::error::No files were translated. Check translate.log and that the build compiles."
+            exit 1
+          fi
+
+      - name: Export Mobile Build Session
+        run: |
+          sourceanalyzer -b "$BUILD_ID" -export-build-session fortify.mbs
+          zip -j fortify-mbs.zip fortify.mbs
+          unzip -l fortify-mbs.zip
+
+      - name: Keep translation artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fortify-translation
+          path: |
+            translate.log
+            translated-files.txt
+            fortify-mbs.zip
+          if-no-files-found: ignore
+
+      - name: Submit to FoD and wait for results
+        env:
+          FOD_CLIENT_ID: ${{ secrets.FOD_CLIENT_ID }}
+          FOD_CLIENT_SECRET: ${{ secrets.FOD_CLIENT_SECRET }}
+        run: |
+          fcli fod session login --url "$FOD_URL" --client-id "$FOD_CLIENT_ID" --client-secret "$FOD_CLIENT_SECRET"
+          fcli fod sast-scan start --rel "$FOD_RELEASE" --file fortify-mbs.zip --store scan
+          fcli fod sast-scan wait-for ::scan:: --interval 30s --timeout 2h
+          fcli fod action run github-sast-report --rel "$FOD_RELEASE" --file fortify-sast.sarif
+          fcli fod session logout
+
+      - name: Publish to GitHub code scanning
+        if: success()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: fortify-sast.sarif
+          category: fortify-sast

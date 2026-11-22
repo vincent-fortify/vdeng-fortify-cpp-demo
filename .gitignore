@@ -1,0 +1,14 @@
+# Never commit the licensed installer or licence
+docker/installer/*
+!docker/installer/.gitkeep
+*.license
+
+# Build and Fortify outputs
+vuln-demo
+*.o
+*.mbs
+*.fpr
+*.sarif
+*.zip
+translate.log
+translated-files.txt
