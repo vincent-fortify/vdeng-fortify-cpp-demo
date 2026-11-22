@@ -37,7 +37,7 @@ Download **SCA Linux** from the FoD **Tools** page. Copy the `.run` installer in
 ```bash
 DOCKER_BUILDKIT=1 docker build \
   --secret id=fortify_license,src=/path/to/fortify.license \
-  --build-arg SAST_INSTALLER=OpenText_SAST_Fortify_26.3.0_linux_x64.run \
+  --build-arg SAST_INSTALLER=SCA_Linux_Latest_x64.run \
   -t ghcr.io/<owner>/fortify-sast-cpp:26.3.0 docker/
 
 docker push ghcr.io/<owner>/fortify-sast-cpp:26.3.0

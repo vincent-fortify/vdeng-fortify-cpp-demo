@@ -10,7 +10,7 @@
 
 FROM ubuntu:24.04
 
-ARG SAST_INSTALLER=OpenText_SAST_Fortify_26.3.0_linux_x64.run
+ARG SAST_INSTALLER=SCA_Linux_Latest_x64.run
 ARG FCLI_URL=https://github.com/fortify/fcli/releases/latest/download/fcli-linux.tgz
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -30,11 +30,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY installer/${SAST_INSTALLER} /tmp/sast.run
 RUN --mount=type=secret,id=fortify_license,target=/tmp/fortify.license \
     chmod +x /tmp/sast.run \
-    && /tmp/sast.run --mode unattended \
-         --installdir "${FORTIFY_HOME}" \
+    && /tmp/sast.run --mode unattended --unattendedmodeui none \
+         --install_dir "${FORTIFY_HOME}" \
          --fortify_license_path /tmp/fortify.license \
-         --MigrateSCA 0 \
-         --UpdateSecurityContent 1 \
+         --migrate_sca 0 \
+         --update_security_content 1 \
     && rm -f /tmp/sast.run "${FORTIFY_HOME}/fortify.license"
 
 # fcli for FoD session, scan submission, wait and SARIF export
