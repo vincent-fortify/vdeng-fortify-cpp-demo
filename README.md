@@ -11,8 +11,8 @@ push / PR
   -> container job (private image: Fortify SAST + fcli + gcc/make)
   -> sourceanalyzer touchless make      translate using the real build
   -> -export-build-session              package as MBS (zip)
-  -> fcli fod sast-scan start + wait    scan in FoD (stack: MBS/C/C++/Scala)
-  -> fcli github-sast-report            SARIF with data flow
+  -> fortify/github-action (USE_PACKAGE) scan in FoD (stack: MBS/C/C++/Scala), wait
+  -> github-sast-report export          SARIF with data flow
   -> GitHub code scanning
 ```
 
@@ -26,7 +26,7 @@ hard-coded password and more). **Do not deploy it.**
 | `src/`, `Makefile` | Demo C application, built with `make` |
 | `docker/Dockerfile` | Image with Fortify SAST, fcli and the C/C++ toolchain |
 | `docker/installer/` | Put the SAST Linux installer here before building (git-ignored, never commit it) |
-| `.github/workflows/fortify-sast-cpp.yml` | Translate, export MBS, scan in FoD, publish SARIF |
+| `.github/workflows/fortify-sast-cpp.yml` | Translate and export MBS, then the Fortify GitHub Action scans in FoD and publishes to code scanning |
 
 ## Setup
 
@@ -73,5 +73,9 @@ The workflow skips until `FOD_RELEASE` is set.
   kept as a build artefact.
 - **Compiler not recognised?** Wrap it explicitly instead of touchless:
   `make CC="sourceanalyzer -b $BUILD_ID gcc"`.
+
+The scan step uses the standard Fortify GitHub Action (`fortify/github-action@v3`), the same action used for
+Java, .NET or IaC repos. The only C/C++ difference is the translate and export steps before it, with
+`USE_PACKAGE` pointing the action at the MBS instead of letting it package source.
 
 Reference: Fortify on Demand 26.4 User Guide, section 4.1.2.8 "Prepare C and C++ application files".

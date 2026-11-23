@@ -2,7 +2,7 @@ name: Fortify SAST (C/C++ via MBS)
 
 # C/C++ cannot be uploaded to FoD as source. The job translates the code with
 # sourceanalyzer (wrapping the normal build), exports a Mobile Build Session (MBS),
-# submits it to FoD with fcli, waits for results and publishes them to GitHub code scanning.
+# then the Fortify GitHub Action submits it to FoD, waits and publishes to code scanning.
 
 on:
   push:
@@ -34,7 +34,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Fortify licence
         env:
@@ -54,13 +54,13 @@ jobs:
 
       - name: Export Mobile Build Session
         run: |
-          sourceanalyzer -b "$BUILD_ID" -export-build-session fortify.mbs
+          sourceanalyzer -b "$BUILD_ID" -Dcom.fortify.sca.MobileBuildSessions=true -export-build-session fortify.mbs
           zip -j fortify-mbs.zip fortify.mbs
           unzip -l fortify-mbs.zip
 
       - name: Keep translation artefacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: fortify-translation
           path: |
@@ -69,20 +69,16 @@ jobs:
             fortify-mbs.zip
           if-no-files-found: ignore
 
-      - name: Submit to FoD and wait for results
+      # Official Fortify action. USE_PACKAGE skips ScanCentral source packaging (which
+      # cannot handle C/C++) and submits the pre-translated MBS instead. The action then
+      # waits for the scan and publishes results to GitHub code scanning.
+      - name: Fortify on Demand SAST (pre-translated MBS)
+        uses: fortify/github-action@v3
         env:
+          FOD_URL: ${{ vars.FOD_URL }}
           FOD_CLIENT_ID: ${{ secrets.FOD_CLIENT_ID }}
           FOD_CLIENT_SECRET: ${{ secrets.FOD_CLIENT_SECRET }}
-        run: |
-          fcli fod session login --url "$FOD_URL" --client-id "$FOD_CLIENT_ID" --client-secret "$FOD_CLIENT_SECRET"
-          fcli fod sast-scan start --rel "$FOD_RELEASE" --file fortify-mbs.zip --store scan
-          fcli fod sast-scan wait-for ::scan:: --interval 30s --timeout 2h
-          fcli fod action run github-sast-report --rel "$FOD_RELEASE" --file fortify-sast.sarif
-          fcli fod session logout
-
-      - name: Publish to GitHub code scanning
-        if: success()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: fortify-sast.sarif
-          category: fortify-sast
+          FOD_RELEASE: ${{ vars.FOD_RELEASE }}
+          USE_PACKAGE: fortify-mbs.zip
+          DO_WAIT: true
+          DO_CHECK_POLICY: false
