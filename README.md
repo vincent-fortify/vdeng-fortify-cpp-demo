@@ -46,6 +46,12 @@ docker push ghcr.io/<owner>/fortify-sast-cpp:26.3.0
 The licence is passed as a build secret and removed after install, so it is not stored in the image.
 **Keep the image private**: it contains a licensed product.
 
+If you copy this repo, update two references to point at your own org and repo:
+
+- `LABEL org.opencontainers.image.source` in `docker/Dockerfile`. This links the GHCR package to your repo so the
+  workflow's `GITHUB_TOKEN` can pull it. Check **Package settings > Manage Actions access** shows your repo with **Read**.
+- `container.image` in `.github/workflows/fortify-sast-cpp.yml`.
+
 ### 2. FoD release
 
 Create (or reuse) an application and release, and set **Static Scan Setup > Technology Stack** to
@@ -72,10 +78,15 @@ The workflow skips until `FOD_RELEASE` is set.
 - **Check the translated file list.** The workflow fails if nothing was translated; `translate.log` is
   kept as a build artefact.
 - **Compiler not recognised?** Wrap it explicitly instead of touchless:
-  `make CC="sourceanalyzer -b $BUILD_ID gcc"`.
+  `make CC="sourceanalyzer -b $BUILD_ID gcc"`. Supported compilers include gcc/g++ 4.9, 5.x, 6.x to 10.4, 11, 12
+  and 13, MSVC 2015 to 2022 (Windows) and Clang 14.0.3, 15.0.0 and 16.0.0 (macOS only).
+- **Private code, public repo?** The workflow keeps `translate.log` and the MBS as a build artefact. On a public
+  repository artefacts are downloadable, and the MBS contains your translated code. Use a private repository for
+  real projects, or remove `fortify-mbs.zip` from the artefact step.
 
 The scan step uses the standard Fortify GitHub Action (`fortify/github-action@v3`), the same action used for
 Java, .NET or IaC repos. The only C/C++ difference is the translate and export steps before it, with
 `USE_PACKAGE` pointing the action at the MBS instead of letting it package source.
 
-Reference: Fortify on Demand 26.4 User Guide, section 4.1.2.8 "Prepare C and C++ application files".
+References: Fortify on Demand 26.4 User Guide, sections 4.1.1.2 "Supported compilers" and 4.1.2.8 "Prepare C and C++
+application files"; fcli FoD CI action documentation (`USE_PACKAGE`).

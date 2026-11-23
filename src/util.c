@@ -3,9 +3,10 @@
 #include <string.h>
 #include "util.h"
 
-/* CWE-190 / CWE-122: Integer overflow leading to heap overflow */
+/* CWE-190 / CWE-122: Integer overflow leading to heap overflow.
+ * Input from recv() can be up to 1023 bytes, so the 8-bit length wraps and malloc is undersized. */
 void copy_input(const char *src) {
-    unsigned short len = (unsigned short)strlen(src) + 1;
+    unsigned char len = (unsigned char)(strlen(src) + 1);
     char *dst = (char *)malloc(len);
     if (!dst) return;
     memcpy(dst, src, strlen(src) + 1);
