@@ -57,6 +57,8 @@ jobs:
           sourceanalyzer -b "$BUILD_ID" -Dcom.fortify.sca.MobileBuildSessions=true -export-build-session fortify.mbs
           zip -j fortify-mbs.zip fortify.mbs
           unzip -l fortify-mbs.zip
+          # Absolute container path: the Fortify action resolves relative paths against its own data dir
+          echo "MBS_PACKAGE=$PWD/fortify-mbs.zip" >> "$GITHUB_ENV"
 
       - name: Keep translation artefacts
         if: always()
@@ -79,6 +81,6 @@ jobs:
           FOD_CLIENT_ID: ${{ secrets.FOD_CLIENT_ID }}
           FOD_CLIENT_SECRET: ${{ secrets.FOD_CLIENT_SECRET }}
           FOD_RELEASE: ${{ vars.FOD_RELEASE }}
-          USE_PACKAGE: fortify-mbs.zip
+          USE_PACKAGE: ${{ env.MBS_PACKAGE }}
           DO_WAIT: true
           DO_CHECK_POLICY: false
